@@ -1,0 +1,7 @@
+BEGIN
+
+    FOR i := READ; i < 8; i := i + 1 DO
+        WRITE(i)
+    OD
+
+END
