@@ -31,90 +31,94 @@ using namespace std;
  * ошибок без печати сообщений. Если в процессе разбора была найдена хотя бы
  * одна ошибка, код для виртуальной машины не печатается.*/
 
-class Parser 
+class Parser
 {
 public:
-	// Конструктор
-	//    const string& fileName - имя файла с программой для анализа
-	//
-	// Конструктор создает экземпляры лексического анализатора и генератора.
+  // Конструктор
+  //    const string& fileName - имя файла с программой для анализа
+  //
+  // Конструктор создает экземпляры лексического анализатора и генератора.
 
-	Parser(const string& fileName, istream& input)
-		: output_(cout), error_(false), recovered_(true), lastVar_(0)
-	{
-		scanner_ = new Scanner(fileName, input);
-		codegen_ = new CodeGen(output_);
-		next();
-	}
+  Parser(const string &fileName, istream &input)
+    : output_(cout), error_(false), recovered_(true), lastVar_(0)
+  {
+    scanner_ = new Scanner(fileName, input);
+    codegen_ = new CodeGen(output_);
+    next();
+  }
 
-	~Parser()
-	{
-		delete codegen_;
-		delete scanner_;
-	}
+  ~Parser()
+  {
+    delete codegen_;
+    delete scanner_;
+  }
 
-	void parse();	//проводим синтаксический разбор 
+  void parse();  //проводим синтаксический разбор
 
 private:
-	typedef map<string, int> VarTable;
-	//описание блоков.
-	void program(); //Разбор программы. BEGIN statementList END
-	void statementList(); // Разбор списка операторов.
-	void statement(); //разбор оператора.
-	void expression(); //разбор арифметического выражения.
-	void term(); //разбор слагаемого.
-	void factor(); //разбор множителя.
-	void relation(); //разбор условия.
-	int readInitiVar();
+  typedef map<string, int> VarTable;
+  vector<int> default_bp;
 
-	// Сравнение текущей лексемы с образцом. Текущая позиция в потоке лексем не изменяется.
-	bool see(Token t)
-	{
-		return scanner_->token() == t; 
-	}
+  //описание блоков.
+  void program(); //Разбор программы. BEGIN statementList END
+  void statementList(vector<int> &breakPoints, bool isLoop, int continueAddress); // Разбор списка операторов.
+  void statementList();
+  void statement(bool isLoop, int continueAddress, vector<int> &breakPoints); //разбор оператора.
+  void expression(); //разбор арифметического выражения.
+  void term(); //разбор слагаемого.
+  void factor(); //разбор множителя.
+  void relation(); //разбор условия.
+  int readInitiVar();
 
-	// Проверка совпадения текущей лексемы с образцом. Если лексема и образец совпадают,
-	// лексема изымается из потока.
+  // Сравнение текущей лексемы с образцом. Текущая позиция в потоке лексем не изменяется.
+  bool see(Token t)
+  {
+    return scanner_->token() == t;
+  }
 
-	bool match(Token t)
-	{
-		if(scanner_->token() == t) {
-			scanner_->nextToken();
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
+  // Проверка совпадения текущей лексемы с образцом. Если лексема и образец совпадают,
+  // лексема изымается из потока.
 
-	// Переход к следующей лексеме.
+  bool match(Token t)
+  {
+    if (scanner_->token() == t) {
+      scanner_->nextToken();
+      return true;
+    } else {
+      return false;
+    }
+  }
 
-	void next()
-	{
-		scanner_->nextToken();
-	}
+  // Переход к следующей лексеме.
 
-	// Обработчик ошибок.
-	void reportError(const string& message)
-	{
-		cerr << "Line " << scanner_->getLineNumber() << ": " << message << endl;
-		error_ = true;
-	}
-	
-	void mustBe(Token t); //проверяем, совпадает ли данная лексема с образцом. Если да, то лексема изымается из потока.
-	//Иначе создаем сообщение об ошибке и пробуем восстановиться
-	void recover(Token t); //восстановление после ошибки: идем по коду до тех пор, 
-	//пока не встретим эту лексему или лексему конца файла.
-	int findOrAddVariable(const string&); //функция пробегает по variables_. 
-	//Если находит нужную переменную - возвращает ее номер, иначе добавляет ее в массив, увеличивает lastVar и возвращает его.
+  void next()
+  {
+    scanner_->nextToken();
+  }
 
-	Scanner* scanner_; //лексический анализатор для конструктора
-	CodeGen* codegen_; //указатель на виртуальную машину
-	ostream& output_; //выходной поток (в данном случае используем cout)
-	bool error_; //флаг ошибки. Используется чтобы определить, выводим ли список команд после разбора или нет
-	bool recovered_; //не используется
-	VarTable variables_; //массив переменных, найденных в программе
-	int lastVar_; //номер последней записанной переменной
+  // Обработчик ошибок.
+  void reportError(const string &message)
+  {
+    cerr << "Line " << scanner_->getLineNumber() << ": " << message << endl;
+    error_ = true;
+  }
+
+  void mustBe(Token t); //проверяем, совпадает ли данная лексема с образцом. Если да, то лексема изымается из потока.
+  //Иначе создаем сообщение об ошибке и пробуем восстановиться
+  void recover(Token t); //восстановление после ошибки: идем по коду до тех пор,
+  //пока не встретим эту лексему или лексему конца файла.
+  int findOrAddVariable(const string &); //функция пробегает по variables_.
+  //Если находит нужную переменную - возвращает ее номер, иначе добавляет ее в массив, увеличивает lastVar и возвращает его.
+
+  void initializeBreaks(int endAddress, vector<int> &breakPoints);
+
+  Scanner *scanner_; //лексический анализатор для конструктора
+  CodeGen *codegen_; //указатель на виртуальную машину
+  ostream &output_; //выходной поток (в данном случае используем cout)
+  bool error_; //флаг ошибки. Используется чтобы определить, выводим ли список команд после разбора или нет
+  bool recovered_; //не используется
+  VarTable variables_; //массив переменных, найденных в программе
+  int lastVar_; //номер последней записанной переменной
 };
 
 #endif

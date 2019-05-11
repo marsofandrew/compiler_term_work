@@ -31,7 +31,9 @@ enum Token
   T_LPAREN,    // Открывающая скобка
   T_RPAREN,    // Закрывающая скобка
   T_SEMICOLON,    // ";"
-  T_FOR       // token FOR
+  T_FOR,       // token FOR
+  T_BREAK,
+  T_CONTINUE
 };
 
 // Функция tokenToString возвращает описание лексемы.
@@ -81,6 +83,8 @@ public:
     keywords_["write"] = T_WRITE;
     keywords_["read"] = T_READ;
     keywords_["for"] = T_FOR;
+    keywords_["break"] = T_BREAK;
+    keywords_["continue"] = T_CONTINUE;
 
     nextChar();
   }

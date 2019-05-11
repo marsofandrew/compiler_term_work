@@ -21,6 +21,12 @@ void Parser::program()
 
 void Parser::statementList()
 {
+  vector<int> points = {};
+  statementList(points, false, -1);
+}
+
+void Parser::statementList(vector<int> &breakPoints, bool isLoop, int continueAddress)
+{
   //	  Если список операторов пуст, очередной лексемой будет одна из возможных "закрывающих скобок": END, OD, ELSE, FI.
   //	  В этом случае результатом разбора будет пустой блок (его список операторов равен null).
   //	  Если очередная лексема не входит в этот список, то ее мы считаем началом оператора и вызываем метод statement.
@@ -30,13 +36,13 @@ void Parser::statementList()
   } else {
     bool more = true;
     while (more) {
-      statement();
+      statement(isLoop, continueAddress, breakPoints);
       more = match(T_SEMICOLON);
     }
   }
 }
 
-void Parser::statement()
+void Parser::statement(bool isLoop, int continueAddress, vector<int> &breakPoints)
 {
   // Если встречаем переменную, то запоминаем ее адрес или добавляем новую если не встретили.
   // Следующей лексемой должно быть присваивание. Затем идет блок expression, который возвращает значение на вершину стека.
@@ -54,14 +60,14 @@ void Parser::statement()
     int jumpNoAddress = codegen_->reserve();
 
     mustBe(T_THEN);
-    statementList();
+    statementList(breakPoints, continueAddress, isLoop);
     if (match(T_ELSE)) {
       //Если есть блок ELSE, то чтобы не выполнять его в случае выполнения THEN,
       //зарезервируем место для команды JUMP в конец этого блока
       int jumpAddress = codegen_->reserve();
       //Заполним зарезервированное место после проверки условия инструкцией перехода в начало блока ELSE.
       codegen_->emitAt(jumpNoAddress, JUMP_NO, codegen_->getCurrentAddress());
-      statementList();
+      statementList(breakPoints, continueAddress, isLoop);
       //Заполним второй адрес инструкцией перехода в конец условного блока ELSE.
       codegen_->emitAt(jumpAddress, JUMP, codegen_->getCurrentAddress());
     } else {
@@ -73,38 +79,57 @@ void Parser::statement()
     mustBe(T_FI);
   } else if (match(T_WHILE)) {
     //запоминаем адрес начала проверки условия.
-    int conditionAddress = codegen_->getCurrentAddress();
+    int continueAddress = codegen_->getCurrentAddress();
     relation();
     //резервируем место под инструкцию условного перехода для выхода из цикла.
     int jumpNoAddress = codegen_->reserve();
     mustBe(T_DO);
-    statementList();
+    vector<int> breakPoints = {};
+    statementList(breakPoints, true, continueAddress);
     mustBe(T_OD);
     //переходим по адресу проверки условия
-    codegen_->emit(JUMP, conditionAddress);
+    codegen_->emit(JUMP, continueAddress);
     //заполняем зарезервированный адрес инструкцией условного перехода на следующий за циклом оператор.
-    codegen_->emitAt(jumpNoAddress, JUMP_NO, codegen_->getCurrentAddress());
+    int endAddress = codegen_->getCurrentAddress();
+    codegen_->emitAt(jumpNoAddress, JUMP_NO, endAddress);
+    initializeBreaks(endAddress, breakPoints);
   } else if (match(T_FOR)) {
     int varAddress = readInitiVar();
     codegen_->emit(STORE, varAddress);
     mustBe(T_SEMICOLON);
-    int conditionAddress = codegen_->getCurrentAddress();
+    int continueAddress = codegen_->getCurrentAddress();
     relation();
     int jumpNoAddress = codegen_->reserve();
     mustBe(T_SEMICOLON);
     int statementAfter = readInitiVar();
     mustBe(T_DO);
-    statementList();
+    vector<int> breakPoints = {};
+    statementList(breakPoints, true, continueAddress);
+
     mustBe(T_OD);
     codegen_->emit(STORE, statementAfter);
-    codegen_->emit(JUMP, conditionAddress);
-    codegen_->emitAt(jumpNoAddress, JUMP_NO, codegen_->getCurrentAddress());
+    codegen_->emit(JUMP, continueAddress);
+    int endAddress = codegen_->getCurrentAddress();
+    codegen_->emitAt(jumpNoAddress, JUMP_NO, endAddress);
+    initializeBreaks(endAddress, breakPoints);
 
   } else if (match(T_WRITE)) {
     mustBe(T_LPAREN);
     expression();
     mustBe(T_RPAREN);
     codegen_->emit(PRINT);
+  } else if (match(T_CONTINUE)) {
+    if (isLoop) {
+      codegen_->emit(JUMP, continueAddress);
+    } else {
+      reportError("continue should be inside loop");
+    }
+  } else if (match(T_BREAK)) {
+    if (isLoop) {
+      breakPoints.push_back(codegen_->reserve());
+    } else {
+      reportError("break should be inside loop");
+    }
   } else {
     reportError("statement expected.");
   }
@@ -274,4 +299,11 @@ int Parser::readInitiVar()
   mustBe(T_ASSIGN);
   expression();
   return varAddress;
+}
+
+void Parser::initializeBreaks(int endAddress, vector<int> &breakPoints)
+{
+  for (int address: breakPoints) {
+    codegen_->emitAt(address, JUMP, endAddress);
+  }
 }

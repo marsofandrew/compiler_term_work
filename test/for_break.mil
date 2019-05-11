@@ -1,0 +1,8 @@
+BEGIN
+
+    FOR i := READ; i < 8; i := i + 1 DO
+        IF i < 0 THEN break FI;
+        WRITE(i)
+    OD;
+    WRITE (5555)
+END
