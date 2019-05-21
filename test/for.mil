@@ -2,6 +2,7 @@ BEGIN
 
     FOR i := READ; i < 8; i := i + 1 DO
         WRITE(i);
+
         IF i * 2 > 8 THEN WRITE(i*2) FI
     OD
 

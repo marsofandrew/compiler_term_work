@@ -1,0 +1,8 @@
+BEGIN
+    k := READ;
+    WHILE K < 5 DO
+        IF K < 0 THEN break FI;
+        WRITE(k);
+        k := k+1
+    OD
+END
